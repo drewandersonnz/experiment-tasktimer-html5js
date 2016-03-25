@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="">
+        <meta name="author" content="">
+
+        <title>experiments.drewanderson.org</title>
+
+        <!-- jQuery CDN -->
+        <script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
+        <script src="https://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+
+        <!-- Optional theme -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
+
+        <!-- Latest compiled and minified JavaScript -->
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+
+        <script>
+            if (!Date.seconds) {
+                Date.seconds = function() { return new Date().getTime() / 1000; }
+            }
+
+            function displayDuration(duration) {
+                min = (duration/60) << 0,
+                sec = (duration) % 60;
+
+                return min + "m " + sec.toFixed(2) + "s";
+            }
+
+            function dataManager() {
+
+                this.items = [];
+                this.started = false;
+                this.timeStart = Date.seconds();
+                this.totalCount = 0;
+                this.timerId = 0;
+                this.stats = {
+                    totalTime: 0,
+                    average: 0,
+                };
+
+                this.itemsRemaining = function() {
+                    return (this.totalCount - this.items.length);
+                }
+
+                this.start = function() {
+                    if (this.started) {
+                        return false;
+                    }
+
+                    this.started = true;
+                    this.timeStart = Date.seconds();
+                    newItem = {
+                        timestamp: Date.seconds(),
+                        description: "Started",
+                    };
+                    addItemToTable(false, newItem, 0);
+
+                    this.timerId = setInterval(function() {
+                        updateStats();
+                    }, 100);
+                }
+
+                this.onComplete = function() {
+                    clearInterval(this.timerId);
+                    prevItem = {
+                        timestamp: this.timeStart,
+                    };
+                    newItem = {
+                        timestamp: Date.seconds(),
+                        description: "All work completed",
+                    };
+                    addItemToTable(prevItem, newItem, 0);
+
+                    updateStats();
+                }
+
+                this.addItem = function() {
+                    if (! this.started) {
+                        return false;
+                    }
+
+                    if (this.itemsRemaining() < 1) {
+                        return false;
+                    }
+
+                    var duration = Date.seconds() - this.timeStart;
+                    var prevItem = {timestamp: dm.timeStart, };
+                    if (this.items.length - 1 >= 0) {
+                        prevItem = this.items[this.items.length - 1];
+                        duration = Date.seconds() - prevItem.timestamp;
+                    }
+
+                    newItem = {
+                        timestamp: Date.seconds(),
+                        duration: duration,
+                        description: "One task completed",
+                    };
+                    this.items.push(newItem);
+
+                    addItemToTable(prevItem, newItem, this.items.length);
+                    this.updateStats();
+
+                    if (this.itemsRemaining() < 1) {
+                        this.onComplete();
+                        return false;
+                    }
+                }
+
+                this.updateStats = function() {
+                    stats = {
+                        totalTime: 0,
+                        average: 0,
+                    };
+
+                    this.items.forEach(function(entry) {
+                        stats.totalTime += entry.duration;
+                    });
+
+                    stats.average = stats.totalTime / this.items.length;
+
+                    this.stats = stats;
+                }
+            };
+
+            var dm = new dataManager();
+
+            var updateStats = function() {
+                var remaining = (dm.stats.average * dm.itemsRemaining());
+                var completion = remaining + Date.seconds();
+
+                $('#countTotal').html(dm.totalCount);
+                $('#countComplete').html(dm.items.length);
+                $('#countRemaining').html(dm.totalCount - dm.items.length);
+
+                var startTime = new Date((dm.timeStart) * 1000);
+                $('#startTime').html(twoNumbers(startTime.getHours()) + ":" + twoNumbers(startTime.getMinutes()) + ":" + twoNumbers(startTime.getSeconds()));
+                $('#runningTimer').html((dm.started) ? displayDuration(Date.seconds() - dm.timeStart) : "0s");
+
+                $('#durationTotal').html(displayDuration(dm.stats.totalTime));
+                $('#durationAverage').html(displayDuration(dm.stats.average));
+
+                if (dm.items.length > 0) {
+                var estimate = (dm.items[dm.items.length - 1].timestamp + remaining);
+                var estimateTimeComplete = new Date(estimate * 1000);
+                $('#estimateTimeComplete').html(twoNumbers(estimateTimeComplete.getHours()) + ":" + twoNumbers(estimateTimeComplete.getMinutes()) + ":" + twoNumbers(estimateTimeComplete.getSeconds()));
+
+                    var estimateTimeRemaining = estimate - Date.seconds();
+                    $('#estimateTimeRemaining').html(displayDuration(estimateTimeRemaining));
+                }
+            }
+
+            function twoNumbers(value) {return ((value >= 10) ? value : "0" + value);}
+
+            var addItemToTable = function(prevItem, newItem, count) {
+                if (! newItem) {
+                    console.log("Cannot addItemToTable, newItem false.");
+                    return false;
+                }
+
+                if (count == 0) {
+                    count = "";
+                }
+
+                var duration = 0;
+                if (prevItem) {
+                    duration = (newItem.timestamp - prevItem.timestamp);
+                }
+                if (duration == 0) {
+                    duration = "";
+                } else {
+                    duration = displayDuration(duration);
+                }
+
+                var timestamp = new Date(newItem.timestamp * 1000);
+                timestamp = twoNumbers(timestamp.getHours()) + ":" + twoNumbers(timestamp.getMinutes()) + ":" + twoNumbers(timestamp.getSeconds());
+
+                $("#detailBox tr:first-child").after("<tr><td>" + count + "</td><td>" + newItem.description + "</td><td>" + timestamp + "</td><td>" + duration + "</td></tr>");
+            }
+
+            $( document ).ready(function() {
+                updateStats();
+
+                $('#doAddCount').click(function() {
+                    var addCount = parseInt($("#inputAddCount").val());
+                    if (isNaN(addCount) || (addCount < 1)) {
+                        console.log("Cannot add " + addCount);
+                        return false;
+                    }
+
+                    dm.totalCount += addCount;
+                    newItem = {
+                        timestamp: Date.seconds(),
+                        description: "Added " + addCount + " work items. New total: " + dm.totalCount,
+                    };
+                    addItemToTable(false, newItem, 0);
+                    console.log(newItem.description);
+                    updateStats();
+                    return false;
+                });
+
+                $('#doCompleteItem').click(function() {
+                    dm.addItem();
+                    console.log("Completed item.");
+                    return false;
+                });
+
+                $('#doStart').click(function() {
+                    dm.start();
+                    console.log("Started.");
+                    return false;
+                });
+
+                console.log( "ready!" );
+            });
+        </script>
+
+    </head>
+
+    <body>
+
+        <div class="container">
+            <div class="row">
+                <div class="col-xs-12 col-md-4">
+                    <form>
+                        <input id="inputAddCount" type="text" placeholder="0" />
+                        <button id="doAddCount">add</button>
+                    </form>
+
+                    <table id="statsBox" class="table table-hover">
+                        <tr>
+                            <th class="col-xs-6">Items Total</th>
+                            <td id="countTotal"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Items Complete</th>
+                            <td id="countComplete"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Items Remaining</th>
+                            <td id="countRemaining"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Running Timer</th>
+                            <td id="runningTimer"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Duration Total</th>
+                            <td id="durationTotal"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Duration Average</th>
+                            <td id="durationAverage"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Start Time</th>
+                            <td id="startTime"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Estimated Time of Completion</th>
+                            <td id="estimateTimeComplete"></td>
+                        </tr>
+                        <tr>
+                            <th class="col-xs-6">Estimated Time Remaining</th>
+                            <td id="estimateTimeRemaining"></td>
+                        </tr>
+                    </table>
+
+                    <form class="col-xs-12">
+                        <button id="doStart" class="col-xs-12">start</button>
+                    </form>
+
+                    <form class="col-xs-12">
+                        <button id="doCompleteItem" class="col-xs-12">complete one</button>
+                    </form>
+                </div>
+
+                <div class="col-xs-12 col-md-8">
+                    <table id="detailBox" class="table table-hover">
+                        <tr>
+                            <th class="col-xs-2">Number</th>
+                            <th class="col-xs-4">Description</th>
+                            <th class="col-xs-3">Time Completed</th>
+                            <th class="col-xs-3">Duration</th>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </body>
+</html>
